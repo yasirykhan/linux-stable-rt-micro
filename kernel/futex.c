@@ -1395,6 +1395,7 @@ static int wake_futex_pi(u32 __user *uaddr, u32 uval, struct futex_q *this,
 	struct futex_pi_state *pi_state = this->pi_state;
 	u32 uninitialized_var(curval), newval;
 	WAKE_Q(wake_q);
+	WAKE_Q(wake_sleeper_q);
 	bool deboost;
 	int ret = 0;
 
@@ -1458,7 +1459,8 @@ static int wake_futex_pi(u32 __user *uaddr, u32 uval, struct futex_q *this,
 		 * not fail.
 		 */
 		pi_state_update_owner(pi_state, new_owner);
-		deboost = __rt_mutex_futex_unlock(&pi_state->pi_mutex, &wake_q);
+		deboost = __rt_mutex_futex_unlock(&pi_state->pi_mutex, &wake_q,
+						  &wake_sleeper_q);
 	}
 
 	raw_spin_unlock_irq(&pi_state->pi_mutex.wait_lock);
@@ -1466,6 +1468,7 @@ static int wake_futex_pi(u32 __user *uaddr, u32 uval, struct futex_q *this,
 
 	if (deboost) {
 		wake_up_q(&wake_q);
+		wake_up_q_sleeper(&wake_sleeper_q);
 		rt_mutex_adjust_prio(current);
 	}
 
@@ -3013,10 +3016,7 @@ static int futex_wait_requeue_pi(u32 __user *uaddr, unsigned int flags,
 	 * The waiter is allocated on our stack, manipulated by the requeue
 	 * code while we sleep on uaddr.
 	 */
-	debug_rt_mutex_init_waiter(&rt_waiter);
-	RB_CLEAR_NODE(&rt_waiter.pi_tree_entry);
-	RB_CLEAR_NODE(&rt_waiter.tree_entry);
-	rt_waiter.task = NULL;
+	rt_mutex_init_waiter(&rt_waiter, false);
 
 	ret = get_futex_key(uaddr2, flags & FLAGS_SHARED, &key2, VERIFY_WRITE);
 	if (unlikely(ret != 0))
