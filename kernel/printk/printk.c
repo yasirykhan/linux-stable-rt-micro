@@ -349,6 +349,31 @@ static int console_msg_format = MSG_FORMAT_DEFAULT;
 static DEFINE_MUTEX(syslog_lock);
 
 #ifdef CONFIG_PRINTK
+static atomic_t printk_direct = ATOMIC_INIT(0);
+
+/**
+ * printk_direct_enter - cause console printing to occur in the context of
+ * 	printk() callers
+ *
+ * This globally effects all printk() callers.
+ *
+ * Context: Any context.
+ */
+void printk_direct_enter(void)
+{
+	atomic_inc(&printk_direct);
+}
+
+/**
+ * printk_direct_exit - restore console printing behavior from direct
+ *
+ * Context: Any context.
+ */
+void printk_direct_exit(void)
+{
+	atomic_dec(&printk_direct);
+}
+
 DECLARE_WAIT_QUEUE_HEAD(log_wait);
 /* All 3 protected by @syslog_lock. */
 /* the next printk record to read by syslog(READ) or /proc/kmsg */
