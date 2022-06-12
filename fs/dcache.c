@@ -2747,13 +2747,15 @@ EXPORT_SYMBOL(__d_lookup_done);
 
 static inline void __d_add(struct dentry *dentry, struct inode *inode)
 {
+	wait_queue_head_t *d_wait;
 	struct inode *dir = NULL;
 	unsigned n;
+
 	spin_lock(&dentry->d_lock);
 	if (unlikely(d_in_lookup(dentry))) {
 		dir = dentry->d_parent->d_inode;
 		n = start_dir_add(dir);
-		wake_up_all(__d_lookup_unhash(dentry));
+		d_wait = __d_lookup_unhash(dentry);
 	}
 	if (inode) {
 		unsigned add_flags = d_flags_for_inode(inode);
@@ -2764,8 +2766,10 @@ static inline void __d_add(struct dentry *dentry, struct inode *inode)
 		fsnotify_update_flags(dentry);
 	}
 	__d_rehash(dentry);
-	if (dir)
+	if (dir) {
 		end_dir_add(dir, n);
+		wake_up_all(d_wait);
+	}
 	spin_unlock(&dentry->d_lock);
 	if (inode)
 		spin_unlock(&inode->i_lock);
@@ -2912,6 +2916,7 @@ static void __d_move(struct dentry *dentry, struct dentry *target,
 		     bool exchange)
 {
 	struct dentry *old_parent, *p;
+	wait_queue_head_t *d_wait;
 	struct inode *dir = NULL;
 	unsigned n;
 
@@ -2942,7 +2947,7 @@ static void __d_move(struct dentry *dentry, struct dentry *target,
 	if (unlikely(d_in_lookup(target))) {
 		dir = target->d_parent->d_inode;
 		n = start_dir_add(dir);
-		wake_up_all(__d_lookup_unhash(target));
+		d_wait = __d_lookup_unhash(target);
 	}
 
 	write_seqcount_begin(&dentry->d_seq);
@@ -2977,8 +2982,10 @@ static void __d_move(struct dentry *dentry, struct dentry *target,
 	write_seqcount_end(&target->d_seq);
 	write_seqcount_end(&dentry->d_seq);
 
-	if (dir)
+	if (dir) {
 		end_dir_add(dir, n);
+		wake_up_all(d_wait);
+	}
 
 	if (dentry->d_parent != old_parent)
 		spin_unlock(&dentry->d_parent->d_lock);
