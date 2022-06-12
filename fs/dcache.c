@@ -2737,7 +2737,9 @@ static wait_queue_head_t *__d_lookup_unhash(struct dentry *dentry)
 
 void __d_lookup_done(struct dentry *dentry)
 {
+	spin_lock(&dentry->d_lock);
 	wake_up_all(__d_lookup_unhash(dentry));
+	spin_unlock(&dentry->d_lock);
 }
 EXPORT_SYMBOL(__d_lookup_done);
 
@@ -2751,7 +2753,7 @@ static inline void __d_add(struct dentry *dentry, struct inode *inode)
 	if (unlikely(d_in_lookup(dentry))) {
 		dir = dentry->d_parent->d_inode;
 		n = start_dir_add(dir);
-		__d_lookup_done(dentry);
+		wake_up_all(__d_lookup_unhash(dentry));
 	}
 	if (inode) {
 		unsigned add_flags = d_flags_for_inode(inode);
@@ -2940,7 +2942,7 @@ static void __d_move(struct dentry *dentry, struct dentry *target,
 	if (unlikely(d_in_lookup(target))) {
 		dir = target->d_parent->d_inode;
 		n = start_dir_add(dir);
-		__d_lookup_done(target);
+		wake_up_all(__d_lookup_unhash(target));
 	}
 
 	write_seqcount_begin(&dentry->d_seq);
