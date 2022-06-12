@@ -2711,18 +2711,33 @@ mismatch:
 }
 EXPORT_SYMBOL(d_alloc_parallel);
 
-void __d_lookup_done(struct dentry *dentry)
+/*
+ * - Unhash the dentry
+ * - Retrieve and clear the waitqueue head in dentry
+ * - Return the waitqueue head
+ */
+static wait_queue_head_t *__d_lookup_unhash(struct dentry *dentry)
 {
-	struct hlist_bl_head *b = in_lookup_hash(dentry->d_parent,
-						 dentry->d_name.hash);
+	wait_queue_head_t *d_wait;
+	struct hlist_bl_head *b;
+
+	lockdep_assert_held(&dentry->d_lock);
+
+	b = in_lookup_hash(dentry->d_parent, dentry->d_name.hash);
 	hlist_bl_lock(b);
 	dentry->d_flags &= ~DCACHE_PAR_LOOKUP;
 	__hlist_bl_del(&dentry->d_u.d_in_lookup_hash);
-	wake_up_all(dentry->d_wait);
+	d_wait = dentry->d_wait;
 	dentry->d_wait = NULL;
 	hlist_bl_unlock(b);
 	INIT_HLIST_NODE(&dentry->d_u.d_alias);
 	INIT_LIST_HEAD(&dentry->d_lru);
+	return d_wait;
+}
+
+void __d_lookup_done(struct dentry *dentry)
+{
+	wake_up_all(__d_lookup_unhash(dentry));
 }
 EXPORT_SYMBOL(__d_lookup_done);
 
