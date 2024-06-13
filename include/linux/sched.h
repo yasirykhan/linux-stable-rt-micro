@@ -105,6 +105,7 @@ struct user_event_mm;
 #define TASK_FROZEN			0x00008000
 #define TASK_STATE_MAX			0x00010000
 
+
 #define TASK_ANY			(TASK_STATE_MAX-1)
 
 /*
@@ -1538,6 +1539,16 @@ struct task_struct {
 #ifdef CONFIG_USER_EVENTS
 	struct user_event_mm		*user_event_mm;
 #endif
+
+	/* Channel and connections are for managing synchronus message passing*/
+	struct channel **channels; /* Pointer to a dynamically allocated array of channels */ 
+    int max_channels;          /* Maximum number of channels */
+    int num_channels;          /* Current number of channels */
+
+	/* Connection management fields */
+    struct connection **connections; // Pointer to a dynamically allocated array of connections */
+    int max_connections;             /* Maximum number of connections */ 
+    int num_connections;             /* Current number of connections */
 
 	/*
 	 * New fields for task_struct should be added above here, so that

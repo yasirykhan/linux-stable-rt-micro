@@ -74,6 +74,9 @@
 #include <asm/unistd.h>
 #include <asm/mmu_context.h>
 
+#include <linux/channel.h>
+#include <linux/connection.h>
+
 /*
  * The default value should be high enough to not crash a system that randomly
  * crashes its kernel from time to time, but low enough to at least not permit
@@ -241,6 +244,9 @@ void release_task(struct task_struct *p)
 	struct task_struct *leader;
 	struct pid *thread_pid;
 	int zap_leader;
+	cleanup_channels(p);
+	cleanup_connections(p);
+
 repeat:
 	/* don't need to get the RCU readlock here - the process is dead and
 	 * can't be modifying its own credentials. But shut RCU-lockdep up */
@@ -284,6 +290,7 @@ repeat:
 	p = leader;
 	if (unlikely(zap_leader))
 		goto repeat;
+
 }
 
 int rcuwait_wake_up(struct rcuwait *w)

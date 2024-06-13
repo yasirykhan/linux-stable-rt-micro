@@ -943,6 +943,19 @@ asmlinkage long sys_cachestat(unsigned int fd,
 asmlinkage long sys_map_shadow_stack(unsigned long addr, unsigned long size, unsigned int flags);
 
 /*
+	System calls for synchronous message passing
+*/
+
+asmlinkage long sys_channel_create(void);
+asmlinkage long sys_channel_destroy(int channel_id);
+asmlinkage long sys_connection_attach(int channel_id);
+asmlinkage long sys_connection_close(int connection_id);
+asmlinkage long sys_msg_send(int connection_id, const char __user *buf, size_t size,
+							char __user **reply_buf, size_t* size);
+asmlinkage long sys_msg_recv(int channel_id, const char __user *buf, size_t size);
+asmlinkage long sys_msg_reply(int recv_id, const char __user *buf, size_t size);
+
+/*
  * Architecture-specific system calls
  */
 
@@ -1271,4 +1284,17 @@ int __sys_getsockopt(int fd, int level, int optname, char __user *optval,
 		int __user *optlen);
 int __sys_setsockopt(int fd, int level, int optname, char __user *optval,
 		int optlen);
+
+/*
+	ksys equivalant of synchronus message passing functions
+*/
+
+long ksys_channel_create(pid_t pid);
+long ksys_channel_destroy(pid_t pid, int channel_id);
+long ksys_connection_attach(pid_t pid, int channel_id);
+long ksys_connection_close(pid_t pid, int connection_id);
+long ksys_msg_send(pid_t pid, int connection_id, const char __user *buf, size_t size,
+							char __user *reply_buf, size_t reply_size);
+long ksys_msg_recv(pid_t pid, int channel_id, const char __user *buf, size_t size);
+long ksys_msg_reply(pid_t pid, long recv_id, const char __user *buf, size_t size);
 #endif

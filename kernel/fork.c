@@ -111,6 +111,9 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/task.h>
 
+#include <linux/channel.h>
+#include <linux/connection.h>
+
 /*
  * Minimum number of threads to boot the kernel
  */
@@ -2327,6 +2330,17 @@ __latent_entropy struct task_struct *copy_process(
 	p = dup_task_struct(current, node);
 	if (!p)
 		goto fork_out;
+
+	/* Channels are used for synchronus message passing*/
+	init_channels(p, INITIAL_CHANNEL_SIZE);
+
+	/* Initialize connections with the initial size defined by the macro */
+    if (init_connections(p, INITIAL_CONNECTION_SIZE)) 
+	{
+        /* Handle initialization failure */
+        cleanup_channels(p);
+    }
+
 	p->flags &= ~PF_KTHREAD;
 	if (args->kthread)
 		p->flags |= PF_KTHREAD;
