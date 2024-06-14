@@ -27,7 +27,7 @@
 int init_channels(struct task_struct *task, int initial_size)
 {
     task->channels = NULL;
-    task->channels = kmalloc_array(initial_size, sizeof(struct channel *), GFP_KERNEL);
+    task->channels = kmalloc_array(initial_size, sizeof(struct channel_ipc *), GFP_KERNEL);
     if (!task->channels) {
         printk(KERN_INFO "init_channel kernel function failed\n");
         return -ENOMEM;
@@ -47,13 +47,13 @@ int init_channels(struct task_struct *task, int initial_size)
 /* Resize the channel array */
 int resize_channels(struct task_struct *task, int new_size)
 {
-    struct channel **new_channels;
+    struct channel_ipc **new_channels;
 
     if (new_size <= task->max_channels) {
         return 0;
     }
 
-    new_channels = krealloc(task->channels, new_size * sizeof(struct channel *), GFP_KERNEL);
+    new_channels = krealloc(task->channels, new_size * sizeof(struct channel_ipc *), GFP_KERNEL);
     if (!new_channels) {
         return -ENOMEM;
     }
@@ -83,7 +83,7 @@ int find_free_channel_slot(struct task_struct *task)
 }
 
 /* Add a new channel */
-int add_channel(struct task_struct *task, struct channel *ch)
+int add_channel(struct task_struct *task, struct channel_ipc *ch)
 {
     int slot;
     printk(KERN_INFO "add_channel kernel function called\n");
@@ -114,7 +114,7 @@ int add_channel(struct task_struct *task, struct channel *ch)
 }
 
 /* Add a task to the send queue (priority queue) */
-int add_to_send_queue(struct channel *ch, struct task_struct *task, int priority)
+int add_to_send_queue(struct channel_ipc *ch, struct task_struct *task, int priority)
 {
     struct send_queue_item *item = kmalloc(sizeof(struct send_queue_item), GFP_KERNEL);
     if (!item) {
@@ -152,13 +152,13 @@ int add_to_normal_queue(struct list_head *queue, struct task_struct *task)
 }
 
 /* Add a task to the recv queue */
-int add_to_recv_queue(struct channel *ch, struct task_struct *task)
+int add_to_recv_queue(struct channel_ipc *ch, struct task_struct *task)
 {
     return add_to_normal_queue(&ch->recv_queue.head, task);
 }
 
 /* Add a task to the reply queue */
-int add_to_reply_queue(struct channel *ch, struct task_struct *task)
+int add_to_reply_queue(struct channel_ipc *ch, struct task_struct *task)
 {
     return add_to_normal_queue(&ch->reply_queue.head, task);
 }
@@ -230,7 +230,7 @@ long ksys_channel_create(pid_t pid)
 {
     long ret = 0;
     printk(KERN_INFO "channel create system call\n");
-    struct channel *new_channel;
+    struct channel_ipc *new_channel;
 
     struct task_struct* task;
     ret = get_current_task(pid, &task);
@@ -239,7 +239,7 @@ long ksys_channel_create(pid_t pid)
     }
 
     /* Allocate memory for the new channel */
-    new_channel = kmalloc(sizeof(struct channel), GFP_KERNEL);
+    new_channel = kmalloc(sizeof(struct channel_ipc), GFP_KERNEL);
     if (!new_channel) {
         return -ENOMEM; /* Return error code if allocation fails */
     }
@@ -285,7 +285,7 @@ long ksys_channel_destroy(pid_t pid, int channel_id)
     }
 
     struct task_struct *current_task = task; /* Current task */
-    struct channel *ch;
+    struct channel_ipc *ch;
     struct normal_queue_item *recv_item, *recv_tmp;
     struct normal_queue_item *reply_item, *reply_tmp;
     struct send_queue_item *send_item, *send_tmp;

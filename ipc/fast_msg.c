@@ -40,8 +40,8 @@ long ksys_msg_send(pid_t pid, int connection_id, const char __user *buf, size_t 
     }
 
     struct task_struct *current_task = current; /* Current task */
-    struct connection *conn;
-    struct channel *ch;
+    struct conn_ipc *conn;
+    struct channel_ipc *ch;
     struct task_struct *recv_task;
     struct normal_queue_item *recv_item;
     struct normal_queue_item *reply_item;
@@ -100,12 +100,12 @@ long ksys_msg_send(pid_t pid, int connection_id, const char __user *buf, size_t 
 
         /* Copy the message from buf to the task's short_msg_buffer */
         printk(KERN_INFO "the buffer = %s, size = %lud\n", short_msg_buffer, size);
-        memcpy(recv_task->thread_info.short_msg_buffer, short_msg_buffer, size);
+        memcpy(recv_task->short_msg_buffer, short_msg_buffer, size);
         printk(KERN_INFO "recv_task = %p, msg = %s\n", recv_task, 
-                recv_task->thread_info.short_msg_buffer);
+                recv_task->short_msg_buffer);
 
-        recv_task->thread_info.msg_size = size;
-        recv_task->thread_info.sender = current_task;
+        recv_task->msg_size = size;
+        recv_task->sender = current_task;
 
         /* Add the current task to the reply_queue */
         reply_item = kmalloc(sizeof(*reply_item), GFP_KERNEL);
@@ -127,8 +127,8 @@ long ksys_msg_send(pid_t pid, int connection_id, const char __user *buf, size_t 
         printk(KERN_INFO "msg_send no recv_queue copy buffer\n");
 
         /* Copy the message from buf to the current task's short_msg_buffer */
-        memcpy(current_task->thread_info.short_msg_buffer, short_msg_buffer, size);
-        current_task->thread_info.msg_size = size;
+        memcpy(current_task->short_msg_buffer, short_msg_buffer, size);
+        current_task->msg_size = size;
 
         /* Add the current task to the send_queue */
         send_item = kmalloc(sizeof(*send_item), GFP_KERNEL);
@@ -170,16 +170,16 @@ long ksys_msg_send(pid_t pid, int connection_id, const char __user *buf, size_t 
         return -EFAULT; /* Invalid user pointer */
     }
 
-    memcpy(short_msg_buffer, current_task->thread_info.short_msg_buffer, 
-            current_task->thread_info.msg_size);
+    memcpy(short_msg_buffer, current_task->short_msg_buffer, 
+            current_task->msg_size);
 
     /* Copy the buffer from the current task's short_msg_buffer to reply_buf */
-    if (copy_to_user(reply_buf, short_msg_buffer, current_task->thread_info.msg_size)) {
+    if (copy_to_user(reply_buf, short_msg_buffer, current_task->msg_size)) {
         return -EFAULT; /* Copy to user failed */
     }
 
     printk(KERN_INFO "msg_send all done ret = %ld, %p\n", ret, current_task);
-    return current_task->thread_info.msg_size;
+    return current_task->msg_size;
 }
 
 SYSCALL_DEFINE6(msg_send, pid_t, pid, int, connection_id, const char __user*, buf, size_t, buf_size,
@@ -200,7 +200,7 @@ long ksys_msg_recv(pid_t pid, int channel_id, const char __user *buf, size_t siz
     }
 
     struct task_struct *current_task = current; /* Current task */
-    struct channel *ch;
+    struct channel_ipc *ch;
     struct task_struct *send_task;
     struct send_queue_item *send_item;
     struct normal_queue_item *reply_item;
@@ -247,13 +247,13 @@ long ksys_msg_recv(pid_t pid, int channel_id, const char __user *buf, size_t siz
         spin_unlock(&ch->lock);
 
         /* Check the size against the short message buffer size */
-        if (send_task->thread_info.msg_size > SHORT_MSG_SIZE) {
+        if (send_task->msg_size > SHORT_MSG_SIZE) {
             return -EMSGSIZE; /* Message too big */
         }
 
-        memcpy(short_msg_buffer, send_task->thread_info.short_msg_buffer, 
-                            send_task->thread_info.msg_size);
-        size = send_task->thread_info.msg_size;
+        memcpy(short_msg_buffer, send_task->short_msg_buffer, 
+                            send_task->msg_size);
+        size = send_task->msg_size;
         if (copy_to_user((char* __user)buf, short_msg_buffer, size)) {
             return -EFAULT; /* Copy from user failed */
         }
@@ -266,8 +266,9 @@ long ksys_msg_recv(pid_t pid, int channel_id, const char __user *buf, size_t siz
         }
         reply_item->task = send_task;
         list_add_tail(&reply_item->list, &ch->reply_queue.head);
-        recv_id = (long)(((long)send_task & 0xFFFF) << 16) | 
-        (channel_id & 0xFFFF);
+        /*recv_id = (long)(((long)send_task & 0xFFFF) << 16) | 
+        (channel_id & 0xFFFF);*/
+        recv_id = (long)send_task;
     } else {
 
         /* Add the current task to the recv_queue */
@@ -289,26 +290,34 @@ long ksys_msg_recv(pid_t pid, int channel_id, const char __user *buf, size_t siz
         schedule();
         finish_wait(&ch->recv_queue.wait, &wait);
 
-        recv_id = (long)(((long)current_task->thread_info.sender & 0xFFFF) << 16) 
-                    | (channel_id & 0xFFFF);
-        printk(KERN_INFO "msg_recv recv_task =%p recv_id %ld, sender=%p\n", current_task, 
-                            recv_id, current_task->thread_info.sender);
+        spin_lock(&ch->lock);
+
+        /*recv_id = (long)(((long)current_task->sender & 0xFFFF) << 16) 
+                    | (channel_id & 0xFFFF);*/
+        recv_id = (long)(current_task->sender);
+        printk(KERN_INFO "msg_recv recv_task =%p recv_id %p, sender=%p, recv_id==sender=%d\n", 
+        current_task, recv_id, current_task->sender, 
+        recv_id == (long)current_task->sender);
                                     /* Check the size against the short message buffer size */
-        if (current_task->thread_info.msg_size > SHORT_MSG_SIZE) {
+        if (current_task->msg_size > SHORT_MSG_SIZE) {
+            spin_unlock(&ch->lock);
             return -EMSGSIZE; /* Message too big */
         }
 
-        memcpy(short_msg_buffer, current_task->thread_info.short_msg_buffer,
-                current_task->thread_info.msg_size);
-        //*read_bytes = current_task->thread_info.msg_size;
+        memcpy(short_msg_buffer, current_task->short_msg_buffer,
+                current_task->msg_size);
+        //*read_bytes = current_task->msg_size;
         printk(KERN_INFO "msg_recv short_buf =%s buffer_p %p, size =%lud\n", short_msg_buffer, buf,
                          size);
-        if (copy_to_user((char __user*)buf, short_msg_buffer, current_task->thread_info.msg_size)) {
+        if (copy_to_user((char __user*)buf, short_msg_buffer, current_task->msg_size)) {
+            spin_unlock(&ch->lock);
             return -EFAULT; /* Copy from user failed */
         }
+
+        spin_unlock(&ch->lock);
     }
 
-    printk(KERN_INFO "msg_recv  after wake %ld\n", recv_id);
+    printk(KERN_INFO "msg_recv  after wake %p\n", (void*)recv_id);
 
     return recv_id;
 }
@@ -319,7 +328,7 @@ SYSCALL_DEFINE4(msg_recv, pid_t, pid, int, channel_id, const char __user*, buf, 
 }
 
 /* Function to reply to a message */
-long ksys_msg_reply(pid_t pid, int recv_id, const char __user *buf, size_t size)
+long ksys_msg_reply(pid_t pid, long recv_id, const char __user *buf, size_t size)
 {
     long ret = 0;
     struct task_struct* process_task;
@@ -329,9 +338,9 @@ long ksys_msg_reply(pid_t pid, int recv_id, const char __user *buf, size_t size)
     }
 
      /* Task to reply to */
-    struct task_struct *send_task = (struct task_struct *)(((long)recv_id >> 16) & 0xFFFF);
-    int channel_id = (int)((recv_id) & 0xFFFF);
-    struct channel* ch;
+    struct task_struct *send_task = ((struct task_struct *)recv_id);//(struct task_struct *)(((long)recv_id >> 16) & 0xFFFF);
+    int channel_id = 0;//(int)((recv_id) & 0xFFFF);
+    struct channel_ipc* ch;
     struct normal_queue_item *item;
     int found = 0;
 
@@ -362,7 +371,8 @@ long ksys_msg_reply(pid_t pid, int recv_id, const char __user *buf, size_t size)
     spin_lock(&ch->lock);
 
     list_for_each_entry(item, &ch->reply_queue.head, list) {
-        if (((long)item->task & 0xFFFF) == (long)send_task) {
+        printk(KERN_INFO "msg_reply  item %p:%p\n", (long)item->task, send_task);
+        if ((long)item->task == recv_id) {
             found = 1;
             send_task = item->task;
             list_del(&item->list);
@@ -391,8 +401,8 @@ long ksys_msg_reply(pid_t pid, int recv_id, const char __user *buf, size_t size)
 
     printk(KERN_INFO "msg_reply  copying into send_task buffer\n");
 
-    memcpy(send_task->thread_info.short_msg_buffer, short_msg_buffer, size);
-    send_task->thread_info.msg_size = size;
+    memcpy(send_task->short_msg_buffer, short_msg_buffer, size);
+    send_task->msg_size = size;
 
     printk(KERN_INFO "msg_reply wakeup %p\n", send_task);
 
@@ -402,7 +412,7 @@ long ksys_msg_reply(pid_t pid, int recv_id, const char __user *buf, size_t size)
     return 0;
 }
 
-SYSCALL_DEFINE4(msg_reply, pid_t, pid, int, recv_id, const char __user*, buf, size_t, size)
+SYSCALL_DEFINE4(msg_reply, pid_t, pid, long, recv_id, const char __user*, buf, size_t, size)
 {
     return ksys_msg_reply(pid, recv_id, buf, size);
 }

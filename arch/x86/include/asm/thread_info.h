@@ -53,18 +53,10 @@ struct task_struct;
 #include <asm/cpufeature.h>
 #include <linux/atomic.h>
 
-/* Define the size of the short message buffer, used in synchronous message passing */
-#define SHORT_MSG_SIZE       256 
-
 struct thread_info {
 	unsigned long		flags;		/* low level flags */
 	unsigned long		syscall_work;	/* SYSCALL_WORK_ flags */
 	u32			status;		/* thread synchronous flags */
-
-	/* Buffer for short synchronous message*/
-	char		short_msg_buffer[SHORT_MSG_SIZE];
-	size_t 		msg_size; /* Size of the message */
-	struct task_struct* sender; /* Sender of the message*/
 #ifdef CONFIG_SMP
 	u32			cpu;		/* current CPU */
 #endif

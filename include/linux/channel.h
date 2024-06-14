@@ -11,6 +11,7 @@
 #include <linux/sched.h>
 
 #define INITIAL_CHANNEL_SIZE 10 /* Define the initial channel array size */
+#define SHORT_MSG_SIZE       256 /* Define the short synchronus message size*/
 
 /**
  * struct wait_queue - Represents a combined list and wait queue
@@ -23,14 +24,14 @@ struct wait_queue {
 };
 
 /**
- * struct channel - Represents a communication channel
+ * struct channel_ipc - Represents a communication channel
  * @send_queue: Priority queue for sending messages
  * @recv_queue: Normal queue for receiving messages
  * @reply_queue: Normal queue for reply messages
  * @in_use: Flag to indicate if the channel is in use
  * @lock: Spinlock for synchronizing access to the channel
  */
-struct channel {
+struct channel_ipc {
     struct wait_queue send_queue;  /* Priority queue */
     struct wait_queue recv_queue;  /* Normal queue */
     struct wait_queue reply_queue; /* Normal queue */
@@ -94,9 +95,9 @@ int find_free_channel_slot(struct task_struct *task);
  * @task: The task to which to add the channel
  * @ch: The channel to add
  *
- * Returns the index of the added channel on success, or an error code on failure.
+ * Returns the index of the added channel_ipc on success, or an error code on failure.
  */
-int add_channel(struct task_struct *task, struct channel *ch);
+int add_channel(struct task_struct *task, struct channel_ipc *ch);
 
 /**
  * add_to_send_queue - Adds a task to the send queue of a channel
@@ -106,7 +107,7 @@ int add_channel(struct task_struct *task, struct channel *ch);
  *
  * Returns 0 on success, or an error code on failure.
  */
-int add_to_send_queue(struct channel *ch, struct task_struct *task, int priority);
+int add_to_send_queue(struct channel_ipc *ch, struct task_struct *task, int priority);
 
 /**
  * add_to_recv_queue - Adds a task to the receive queue of a channel
@@ -115,7 +116,7 @@ int add_to_send_queue(struct channel *ch, struct task_struct *task, int priority
  *
  * Returns 0 on success, or an error code on failure.
  */
-int add_to_recv_queue(struct channel *ch, struct task_struct *task);
+int add_to_recv_queue(struct channel_ipc*ch, struct task_struct *task);
 
 /**
  * add_to_reply_queue - Adds a task to the reply queue of a channel
@@ -124,7 +125,7 @@ int add_to_recv_queue(struct channel *ch, struct task_struct *task);
  *
  * Returns 0 on success, or an error code on failure.
  */
-int add_to_reply_queue(struct channel *ch, struct task_struct *task);
+int add_to_reply_queue(struct channel_ipc*ch, struct task_struct *task);
 
 /**
  * cleanup_channels - Cleans up the channel array for a task

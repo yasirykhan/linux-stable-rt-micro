@@ -37,6 +37,8 @@
 #include <linux/kcsan.h>
 #include <linux/rv.h>
 #include <linux/livepatch_sched.h>
+#include <linux/channel.h>
+#include <linux/connection.h>
 #include <asm/kmap_size.h>
 
 /* task_struct member predeclarations (sorted alphabetically): */
@@ -1541,14 +1543,20 @@ struct task_struct {
 #endif
 
 	/* Channel and connections are for managing synchronus message passing*/
-	struct channel **channels; /* Pointer to a dynamically allocated array of channels */ 
+	struct channel_ipc **channels; /* Pointer to a dynamically allocated array of channels */ 
     int max_channels;          /* Maximum number of channels */
     int num_channels;          /* Current number of channels */
 
 	/* Connection management fields */
-    struct connection **connections; // Pointer to a dynamically allocated array of connections */
+    struct conn_ipc **connections; // Pointer to a dynamically allocated array of connections */
     int max_connections;             /* Maximum number of connections */ 
     int num_connections;             /* Current number of connections */
+
+	/* Buffer for short synchronous message*/
+	char		short_msg_buffer[SHORT_MSG_SIZE];
+	size_t 		msg_size; /* Size of the message */
+	struct task_struct* sender; /* Sender of the message*/
+
 
 	/*
 	 * New fields for task_struct should be added above here, so that

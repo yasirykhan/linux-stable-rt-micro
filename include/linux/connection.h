@@ -7,8 +7,8 @@
 
 #define INITIAL_CONNECTION_SIZE 10
 
-struct connection {
-    struct channel *chan; // Pointer to the associated channel
+struct conn_ipc {
+    struct channel_ipc *chan; // Pointer to the associated channel
     int connection_id;    // Connection ID
 };
 

@@ -24,7 +24,7 @@
 /* Initialize the connection array */
 int init_connections(struct task_struct *task, int initial_size)
 {
-    task->connections = kmalloc_array(initial_size, sizeof(struct connection *), GFP_KERNEL);
+    task->connections = kmalloc_array(initial_size, sizeof(struct conn_ipc *), GFP_KERNEL);
     if (!task->connections) {
         return -ENOMEM;
     }
@@ -43,13 +43,13 @@ int init_connections(struct task_struct *task, int initial_size)
 /* Resize the connection array */
 int resize_connections(struct task_struct *task, int new_size)
 {
-    struct connection **new_connections;
+    struct conn_ipc **new_connections;
 
     if (new_size <= task->max_connections) {
         return 0;
     }
 
-    new_connections = krealloc(task->connections, new_size * sizeof(struct connection *), GFP_KERNEL);
+    new_connections = krealloc(task->connections, new_size * sizeof(struct conn_ipc *), GFP_KERNEL);
     if (!new_connections) {
         return -ENOMEM;
     }
@@ -83,11 +83,11 @@ int connection_attach(struct task_struct *task, int channel_id)
         return -EINVAL; /* Invalid channel ID */
     }
 
-    struct connection *conn;
+    struct conn_ipc *conn;
     int slot;
 
     /* Allocate memory for the new connection */
-    conn = kmalloc(sizeof(struct connection), GFP_KERNEL);
+    conn = kmalloc(sizeof(struct conn_ipc), GFP_KERNEL);
     if (!conn) {
         return -ENOMEM; /* Return error code if allocation fails */
     }
